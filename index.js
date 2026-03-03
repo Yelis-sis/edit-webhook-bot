@@ -32,6 +32,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName !== "edit") return;
 
+    // проверка роли
     if (!interaction.member.roles.cache.has(process.env.ROLE_ID)) {
       return interaction.reply({
         content: "Нет доступа",
@@ -74,7 +75,6 @@ client.on(Events.InteractionCreate, async interaction => {
     const channel = await client.channels.fetch(process.env.CHANNEL_ID);
     const message = await channel.messages.fetch(messageId);
 
-    // === Получаем полный webhook-message ===
     const webhooks = await channel.fetchWebhooks();
     const webhook = webhooks.find(w => w.id === message.webhookId);
 
@@ -85,7 +85,6 @@ client.on(Events.InteractionCreate, async interaction => {
 
     const fullMessage = await hookClient.fetchMessage(messageId);
 
-    // === Извлекаем текст ===
     let originalText = "";
 
     if (fullMessage.content) {
@@ -145,9 +144,56 @@ client.on(Events.InteractionCreate, async interaction => {
       token: webhook.token
     });
 
+    // получаем исходный текст ПЕРЕД редактированием
+    const fullMessage = await hookClient.fetchMessage(messageId);
+
+    let originalText = "";
+
+    if (fullMessage.content) {
+      originalText = fullMessage.content;
+    } else if (fullMessage.embeds.length > 0) {
+      const embed = fullMessage.embeds[0];
+      const parts = [];
+
+      if (embed.title) parts.push(embed.title);
+      if (embed.description) parts.push(embed.description);
+
+      if (embed.fields?.length > 0) {
+        embed.fields.forEach(f => {
+          parts.push(`${f.name}: ${f.value}`);
+        });
+      }
+
+      if (embed.footer?.text) parts.push(embed.footer.text);
+
+      originalText = parts.join("\n\n");
+    }
+
+    if (!originalText) originalText = "";
+
+    // редактируем сообщение
     await hookClient.editMessage(messageId, {
       content: newText
     });
+
+    // логируем на другой сервер / в другой канал
+    try {
+      const logChannel = await client.channels.fetch(process.env.LOG_CHANNEL_ID);
+
+      if (logChannel) {
+        await logChannel.send({
+          content:
+            `✏️ Сообщение отредактировано\n` +
+            `👤 Редактор: <@${interaction.user.id}> (${interaction.user.tag})\n` +
+            `🧵 Канал: <#${channel.id}>\n` +
+            `🔗 Сообщение: https://discord.com/channels/${message.guildId}/${channel.id}/${message.id}\n\n` +
+            `**Изначальный текст:**\n${originalText || "*пусто*"}\n\n` +
+            `**Новый текст:**\n${newText || "*пусто*"}`
+        });
+      }
+    } catch (err) {
+      console.error("Ошибка при отправке лога:", err);
+    }
 
     await interaction.reply({
       content: "✅ Сообщение обновлено",
