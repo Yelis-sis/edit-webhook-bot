@@ -5,8 +5,6 @@ const {
   GatewayIntentBits,
   Events,
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -52,29 +50,7 @@ client.on(Events.InteractionCreate, async interaction => {
         ephemeral: true
       });
 
-    const button = new ButtonBuilder()
-      .setCustomId(`edit_${message.id}`)
-      .setLabel("✏️ Редактировать")
-      .setStyle(ButtonStyle.Primary);
-
-    const row = new ActionRowBuilder().addComponents(button);
-
-    await interaction.reply({
-      content: "Редактор:",
-      components: [row],
-      ephemeral: true
-    });
-  }
-
-
-  // ===== BUTTON =====
-  if (interaction.isButton()) {
-
-    const messageId = interaction.customId.replace("edit_", "");
-
-    const channel = await client.channels.fetch(process.env.CHANNEL_ID);
-    const message = await channel.messages.fetch(messageId);
-
+    // === Получаем полный webhook-message ===
     const webhooks = await channel.fetchWebhooks();
     const webhook = webhooks.find(w => w.id === message.webhookId);
 
@@ -85,6 +61,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     const fullMessage = await hookClient.fetchMessage(messageId);
 
+    // === Извлекаем текст ===
     let originalText = "";
 
     if (fullMessage.content) {
@@ -109,20 +86,22 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (!originalText) originalText = "";
 
+    // === Создаём модалку сразу ===
     const modal = new ModalBuilder()
-      .setCustomId(`modal_${messageId}`)
+      .setCustomId(`modal_${message.id}`)
       .setTitle("Редактирование");
 
-    const input = new TextInputBuilder()
+    const inputField = new TextInputBuilder()
       .setCustomId("text")
       .setLabel("Измените текст")
       .setStyle(TextInputStyle.Paragraph)
       .setValue(originalText);
 
     modal.addComponents(
-      new ActionRowBuilder().addComponents(input)
+      new ActionRowBuilder().addComponents(inputField)
     );
 
+    // === Показываем модалку ===
     await interaction.showModal(modal);
   }
 
@@ -200,7 +179,6 @@ client.on(Events.InteractionCreate, async interaction => {
       ephemeral: true
     });
   }
-
 });
 
 client.login(process.env.TOKEN);
