@@ -10,7 +10,10 @@ const commands = [
         .setName("message")
         .setDescription("Ссылка или ID сообщения")
         .setRequired(true)
-    )
+    ),
+  new SlashCommandBuilder()
+    .setName("rules")
+    .setDescription("Показать меню правил сервера")
 ].map(c => c.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
