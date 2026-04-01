@@ -127,7 +127,7 @@ client.on(Events.InteractionCreate, async interaction => {
       // проверка канала
       if (interaction.channelId !== process.env.MENU_CHANNEL_ID) {
         return interaction.reply({
-          content: "Команда доступна только в нужном канале",
+          content: "умный самый? Иди читай в <#1064238046515564614>",
           ephemeral: true
         });
       }
