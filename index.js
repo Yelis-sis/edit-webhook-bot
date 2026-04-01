@@ -7,7 +7,7 @@ app.get("/", (req, res) => {
   res.send("Bot alive");
 });
 
-app.listen(3000, () => console.log("Web server ready"));
+app.listen(process.env.PORT || 3000, () => console.log("Web server ready"));
 
 const {
   Client,
