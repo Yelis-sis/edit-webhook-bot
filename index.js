@@ -7,7 +7,19 @@ app.get("/", (req, res) => {
   res.send("Bot alive");
 });
 
-app.listen(process.env.PORT || 3000, () => console.log("Web server ready"));
+app.listen(3000, () => console.log("Web server ready"));
+
+const fs = require('fs');
+
+// Загружаем сообщения для подписки при старте
+let subscribeMessages = {};
+try {
+  if (fs.existsSync('subscribeMessages.json')) {
+    subscribeMessages = JSON.parse(fs.readFileSync('subscribeMessages.json', 'utf8'));
+  }
+} catch (error) {
+  console.error('Ошибка при загрузке subscribeMessages.json:', error);
+}
 
 const {
   Client,
@@ -122,6 +134,70 @@ client.on(Events.InteractionCreate, async interaction => {
     await interaction.showModal(modal);
     }
 
+    // ===== COMMAND /SUBSCRIBE =====
+    if (interaction.commandName === "subscribe") {
+      try {
+        // массив каналов для подписки из .env
+        const channels = [
+          process.env.SUBSCRIBE_CHANNEL_1,
+          process.env.SUBSCRIBE_CHANNEL_2,
+          process.env.SUBSCRIBE_CHANNEL_3
+        ].filter(Boolean); // убираем пустые значения
+
+        let sentMessages = [];
+
+        for (const channelId of channels) {
+          try {
+            const channel = await client.channels.fetch(channelId);
+            if (channel && channel.isThread()) {
+              // Отправляем пустое сообщение для будущей подписки
+              const msg = await channel.send("⏳ Ожидание подписки...");
+              
+              // Сохраняем ID сообщения
+              if (!subscribeMessages[channelId]) {
+                subscribeMessages[channelId] = [];
+              }
+              subscribeMessages[channelId].push({
+                messageId: msg.id,
+                timestamp: Date.now()
+              });
+              
+              sentMessages.push({ channelId, messageId: msg.id });
+            }
+          } catch (error) {
+            console.error(`Ошибка при отправке сообщения в канал ${channelId}:`, error);
+          }
+        }
+
+        // Сохраняем в файл
+        try {
+          fs.writeFileSync('subscribeMessages.json', JSON.stringify(subscribeMessages, null, 2));
+        } catch (error) {
+          console.error('Ошибка при сохранении subscribeMessages.json:', error);
+        }
+
+        const subscribeButton = new ButtonBuilder()
+          .setCustomId("subscribe_button")
+          .setLabel("Подписаться")
+          .setStyle(ButtonStyle.Success);
+
+        const buttonRow = new ActionRowBuilder().addComponents(subscribeButton);
+
+        await interaction.reply({
+          content: `� Отправил сообщения в ${sentMessages.length} каналов для подписки. Нажмите кнопку чтобы подписаться.`,
+          components: [buttonRow],
+          ephemeral: false
+        });
+
+      } catch (error) {
+        console.error("Ошибка при обработке команды /subscribe:", error);
+        await interaction.reply({
+          content: "❌ Произошла ошибка. Попробуйте позже.",
+          ephemeral: true
+        });
+      }
+    }
+
     // ===== COMMAND /RULES =====
     if (interaction.commandName === "rules") {
       // проверка канала
@@ -189,7 +265,7 @@ client.on(Events.InteractionCreate, async interaction => {
           },
           {
             label: "Читерство",
-            description: "Читерство и регламент подозрений",
+            description: "Читерство и регламент наших действий",
             value: "cheating",
             emoji: "<a:r8:1488925628089499898>"
           }
@@ -329,6 +405,73 @@ client.on(Events.InteractionCreate, async interaction => {
         }
       }
 
+    // обработка кнопки подписки
+    if (interaction.customId === "subscribe_button") {
+      try {
+        let subscribedCount = 0;
+        let failedChannels = [];
+
+        // Проходим по всем сохраненным сообщениям
+        for (const channelId in subscribeMessages) {
+          try {
+            const messages = subscribeMessages[channelId];
+            if (messages && messages.length > 0) {
+              const lastMessage = messages[messages.length - 1];
+              const channel = await client.channels.fetch(channelId);
+              
+              if (channel && channel.isThread()) {
+                // Редактируем сообщение с пингом пользователя
+                const msg = await channel.messages.fetch(lastMessage.messageId);
+                await msg.edit(`Новые пользователи <@${interaction.user.id}>`);
+                
+                // Добавляем пользователя в ветку
+                await channel.members.add(interaction.user.id);
+                subscribedCount++;
+              } else {
+                failedChannels.push(channelId);
+              }
+            }
+          } catch (error) {
+            console.error(`Ошибка при подписке на канал ${channelId}:`, error);
+            failedChannels.push(channelId);
+          }
+        }
+
+        // Очищаем старые сообщения (старше 24 часов)
+        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+        for (const channelId in subscribeMessages) {
+          subscribeMessages[channelId] = subscribeMessages[channelId].filter(
+            msg => msg.timestamp > oneDayAgo
+          );
+        }
+
+        // Сохраняем обновленный файл
+        try {
+          fs.writeFileSync('subscribeMessages.json', JSON.stringify(subscribeMessages, null, 2));
+        } catch (error) {
+          console.error('Ошибка при сохранении subscribeMessages.json:', error);
+        }
+
+        let responseText = `✅ **Вы успешно подписались на ${subscribedCount} каналов!**`;
+        
+        if (failedChannels.length > 0) {
+          responseText += `\n\n⚠️ Не удалось подписаться на ${failedChannels.length} каналов (возможно, у вас нет доступа)`;
+        }
+
+        await interaction.reply({
+          content: responseText,
+          ephemeral: true
+        });
+
+      } catch (error) {
+        console.error("Ошибка при обработке подписки:", error);
+        await interaction.reply({
+          content: "❌ Произошла ошибка при подписке. Попробуйте позже.",
+          ephemeral: true
+        });
+      }
+    }
+
     // обработка кнопки словаря сленга
     if (interaction.customId === "rules_slang_dictionary") {
       showRulesWithNavigation(interaction, "slang_dictionary");
@@ -343,7 +486,7 @@ client.on(Events.InteractionCreate, async interaction => {
         .setTitle("<:hellslibrarian:1112867968087498842> Важная дополнительная информация")
         .setColor(0x71091e)
         .setDescription("<#1210207752098414602> — ветка для фоток людей\n<#1250425906489458748> — а это для природы, вещей и других фото\n<#1391439965967089764> — для всяких зверюшек\n<@&1471568471442592049>:seedling:  — это роль новичка и у неё имеется небольшая доп. цензура, роль автоматически снимется после нескольких отправленных сообщений\n\n<:Jokphina:1322043464120274944>  Если нужна помощь, обращайтесь к <@&1064234881690894476> и <@&1204128001403396187>!")
-        .setFooter({ text: "Добро пожаловать на Маслице!" });
+        .setFooter({ text: "При нажатии на кнопку 3 вы перейдёте в третий раздел правил, а при нажатии «Подписаться» вы присоединитесь к этим трём веткам" });
 
       // создаем кнопку для словаря сленга под панелью
       const slangButton = new ButtonBuilder()
@@ -352,7 +495,14 @@ client.on(Events.InteractionCreate, async interaction => {
         .setLabel("Словарь сленга")
         .setStyle(ButtonStyle.Secondary);
 
-      const buttonRow = new ActionRowBuilder().addComponents(slangButton);
+      // создаем кнопку подписки под панелью
+      const subscribeButton = new ButtonBuilder()
+        .setCustomId("subscribe_button")
+        .setEmoji("🔔")
+        .setLabel("Подписаться")
+        .setStyle(ButtonStyle.Success);
+
+      const buttonRow = new ActionRowBuilder().addComponents(slangButton, subscribeButton);
 
       await interaction.reply({
         content: part1,

@@ -13,7 +13,10 @@ const commands = [
     ),
   new SlashCommandBuilder()
     .setName("rules")
-    .setDescription("Показать меню правил сервера")
+    .setDescription("Показать меню правил сервера"),
+  new SlashCommandBuilder()
+    .setName("subscribe")
+    .setDescription("Подписаться на важные каналы")
 ].map(c => c.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
