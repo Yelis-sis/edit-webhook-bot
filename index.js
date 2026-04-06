@@ -1,5 +1,11 @@
 require("dotenv").config();
 
+// Проверка на включение бота
+if (process.env.BOT_ENABLED === "false") {
+  console.log("Bot is disabled on Railway");
+  process.exit(0);
+}
+
 const express = require("express");
 const app = express();
 
