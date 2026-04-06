@@ -62,7 +62,7 @@ client.on(Events.InteractionCreate, async interaction => {
     // проверка роли
     if (!interaction.member.roles.cache.has(process.env.ROLE_ID)) {
       return interaction.reply({
-        content: "Нет доступа",
+        content: "А ты не наш Сказочник",
         ephemeral: true
       });
     }
