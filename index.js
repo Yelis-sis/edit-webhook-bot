@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+// restart
 // Проверка на включение бота
 if (process.env.BOT_ENABLED === "false") {
   console.log("Bot is disabled on Railway");
