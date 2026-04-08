@@ -150,6 +150,28 @@ client.on(Events.InteractionCreate, async interaction => {
         });
       }
 
+      // создаем кнопки подтверждения
+      const confirmButton = new ButtonBuilder()
+        .setCustomId("subscribe_confirm")
+        .setLabel("Да, я уверен")
+        .setStyle(ButtonStyle.Success);
+
+      const cancelButton = new ButtonBuilder()
+        .setCustomId("subscribe_cancel")
+        .setLabel("Нет, отмена")
+        .setStyle(ButtonStyle.Danger);
+
+      const buttonRow = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
+
+      await interaction.reply({
+        content: "🤔 Вы уверены, что хотите отправить сообщения для подписки во все ветки?",
+        components: [buttonRow],
+        ephemeral: true
+      });
+    }
+
+    // обработка кнопки подтверждения подписки
+    if (interaction.customId === "subscribe_confirm") {
       try {
         // массив каналов для подписки из .env
         const channels = [
@@ -498,6 +520,14 @@ client.on(Events.InteractionCreate, async interaction => {
           console.error("Ошибка при ответе на interaction в catch:", replyError);
         }
       }
+    }
+
+    // обработка кнопки отмены подписки
+    if (interaction.customId === "subscribe_cancel") {
+      await interaction.reply({
+        content: "❌ Операция отменена",
+        ephemeral: true
+      });
     }
 
     // обработка кнопки словаря сленга
